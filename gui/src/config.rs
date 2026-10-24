@@ -22,6 +22,7 @@ pub struct Config {
 pub struct ConfigInner {
     pub preferred_language: Option<String>,
     pub theme: AppTheme,
+    pub reduced_motion: bool,
 }
 
 #[derive(
@@ -30,6 +31,8 @@ pub struct ConfigInner {
 #[serde(rename_all = "kebab-case")]
 pub enum AppTheme {
     #[default]
+    #[translate("studio-theme")]
+    Studio,
     #[translate("system-theme")]
     System,
     #[translate("light-theme")]

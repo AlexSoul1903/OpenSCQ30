@@ -149,9 +149,11 @@ impl AddDeviceModel {
                         let demo_toggle = widget::toggler(ui_model.is_demo_mode)
                             .label(fl!("demo-mode"))
                             .spacing(4)
-                            .on_toggle(|enabled| {
-                                Message::SelectModel(ui_model.device_model, enabled)
-                            });
+                            .on_toggle_maybe(
+                                (std::env::var("OPENSCQ30_DEMO").as_deref() != Ok("1")).then_some(
+                                    |enabled| Message::SelectModel(ui_model.device_model, enabled),
+                                ),
+                            );
                         let refresh = widget::button::standard(fl!("refresh"))
                             .leading_icon(widget::icon::from_name("view-refresh-symbolic"))
                             .on_press(Message::SelectModel(
@@ -249,6 +251,8 @@ impl AddDeviceModel {
                 }
             }
             Message::SelectModel(device_model, is_demo_mode) => {
+                let is_demo_mode =
+                    is_demo_mode || std::env::var("OPENSCQ30_DEMO").as_deref() == Ok("1");
                 if let Stage::SelectDevice(ref mut ui_model) = self.stage {
                     // if we're already on the select device page, don't clear the search and such
                     ui_model.device_model = device_model;
