@@ -18,6 +18,40 @@ pub fn select<'a, M>(
 where
     M: Clone + 'static,
 {
+    // Small choices work better as visible mode segments than hidden dropdowns.
+    if (2..=4).contains(&setting.options.len()) {
+        let value = value.to_owned();
+        return widget::responsive(move |size| {
+            let buttons = setting
+                .options
+                .iter()
+                .zip(&setting.localized_options)
+                .map(|(option, label)| {
+                    widget::button::standard(label.to_owned())
+                        .font_weight(cosmic::iced::font::Weight::Semibold)
+                        .class(if *option == value {
+                            cosmic::theme::Button::Suggested
+                        } else {
+                            cosmic::theme::Button::Standard
+                        })
+                        .width(Length::Fill)
+                        .on_press(on_change(option))
+                        .into()
+                })
+                .collect::<Vec<Element<'_, M>>>();
+            let modes: Element<'_, M> = if size.width < crate::theme::COMPACT_WIDTH {
+                widget::column(buttons).spacing(8).into()
+            } else {
+                widget::row(buttons).spacing(8).into()
+            };
+            widget::column![widget::text::heading(name.clone()), modes]
+                .spacing(12)
+                .padding(16)
+                .into()
+        })
+        .height(Length::Shrink)
+        .into();
+    }
     let selected_index = setting.options.iter().position(|option| option == value);
     let options = setting.options.to_owned();
     labeled_setting_row(

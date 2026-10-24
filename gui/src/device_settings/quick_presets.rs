@@ -68,24 +68,50 @@ impl QuickPresetsModel {
 
     pub fn view(&self) -> Element<'_, Message> {
         if let Some(quick_presets) = &self.quick_presets {
-            widget::column![
-                widget::button::standard(fl!("create-quick-preset"))
-                    .on_press(Message::ShowCreateQuickPresetDialog),
-                widget::column(quick_presets.iter().enumerate().map(|(i, preset)| {
-                    widget::row![
-                        widget::text(&preset.name).width(Length::Fill),
-                        widget::button::standard(fl!("activate"))
-                            .on_press(Message::ActivateQuickPreset(i)),
-                        widget::button::standard(fl!("edit")).on_press(Message::EditQuickPreset(i)),
-                        widget::button::destructive(fl!("delete"))
-                            .on_press(Message::ShowDeleteQuickPresetDialog(i)),
+            widget::scrollable(
+                widget::responsive(move |size| {
+                    let compact = size.width < crate::theme::COMPACT_WIDTH;
+                    widget::column![
+                        widget::text::title2(fl!("quick-presets")),
+                        widget::text::body(fl!("studio-presets-help")),
+                        widget::button::suggested(fl!("create-quick-preset"))
+                            .on_press(Message::ShowCreateQuickPresetDialog),
+                        widget::column(quick_presets.iter().enumerate().map(|(i, preset)| {
+                            let title = widget::text::title4(&preset.name).width(Length::Fill);
+                            let actions = widget::row![
+                                widget::button::suggested(fl!("activate"))
+                                    .on_press(Message::ActivateQuickPreset(i)),
+                                widget::button::standard(fl!("edit"))
+                                    .on_press(Message::EditQuickPreset(i)),
+                                widget::button::text(fl!("delete"))
+                                    .on_press(Message::ShowDeleteQuickPresetDialog(i)),
+                            ]
+                            .spacing(8);
+                            let card: Element<'_, Message> = if compact {
+                                widget::column![title, actions].spacing(16).into()
+                            } else {
+                                widget::row![title, actions]
+                                    .spacing(16)
+                                    .align_y(alignment::Vertical::Center)
+                                    .into()
+                            };
+                            widget::container(card)
+                                .width(Length::Fill)
+                                .padding(20)
+                                .class(cosmic::theme::Container::custom(crate::theme::panel))
+                                .into()
+                        }))
+                        .spacing(16),
                     ]
-                    .padding(10)
-                    .align_y(alignment::Vertical::Center)
+                    .spacing(16)
+                    .padding(crate::theme::PAGE_PADDING)
+                    .width(Length::Fill)
                     .into()
-                })),
-            ]
+                })
+                .height(Length::Shrink),
+            )
             .width(Length::Fill)
+            .height(Length::Fill)
             .into()
         } else {
             widget::text(fl!("loading-item", item = fl!("quick-presets"))).into()
@@ -107,7 +133,7 @@ impl QuickPresetsModel {
                         .on_press(Message::CreateQuickPreset(None)),
                 )
                 .secondary_action(
-                    widget::button::destructive(fl!("cancel")).on_press(Message::CancelDialog),
+                    widget::button::text(fl!("cancel")).on_press(Message::CancelDialog),
                 )
                 .into(),
             Dialog::DeleteQuickPreset(name) => widget::dialog()
