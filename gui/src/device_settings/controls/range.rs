@@ -17,9 +17,14 @@ where
     labeled_setting_row(
         name,
         widget::row![
-            widget::text::body(value.to_string()).width(40),
-            widget::slider(range.range, value, on_change).step(range.step),
+            widget::text::body(value.to_string())
+                .font(crate::theme::NUMERIC)
+                .width(64),
+            widget::slider(range.range, value, on_change)
+                .step(range.step)
+                .class(crate::theme::audio_slider()),
         ]
+        .spacing(12)
         .align_y(alignment::Vertical::Center),
     )
 }

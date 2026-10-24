@@ -1,0 +1,18 @@
+services:
+  studio:
+    build:
+      context: .
+      target: preview
+    ports:
+      - "127.0.0.1:6080:6080"
+    shm_size: 512mb
+    volumes:
+      - studio-config:/home/studio/.config
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+volumes:
+  studio-config:

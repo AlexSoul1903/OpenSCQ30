@@ -13,6 +13,7 @@ pub mod equalizer_line;
 mod i18n;
 pub mod icons;
 mod openscq30_v1_migration;
+mod theme;
 mod throttle;
 mod utils;
 mod warning;
@@ -43,6 +44,7 @@ fn main() -> anyhow::Result<()> {
     let config_dir = dirs::config_dir()
         .expect("failed to find config dir")
         .join("openscq30");
+    std::fs::create_dir_all(&config_dir)?;
 
     let config = config::Config::new(config_dir.join("openscq30-gui-config.toml")).unwrap();
 
@@ -62,11 +64,23 @@ fn main() -> anyhow::Result<()> {
     i18n::init(&requested_languages);
     openscq30_lib::i18n::init(&requested_languages);
 
+    theme::initialize_fonts();
+    theme::set_reduced_motion(config.get().reduced_motion);
     let cosmic_settings = match config.get().theme {
+        config::AppTheme::Studio => cosmic::app::Settings::default().theme(theme::studio()),
         config::AppTheme::System => cosmic::app::Settings::default(),
         config::AppTheme::Light => cosmic::app::Settings::default().theme(cosmic::Theme::light()),
         config::AppTheme::Dark => cosmic::app::Settings::default().theme(cosmic::Theme::dark()),
-    };
+    }
+    .default_font(theme::FONT)
+    .default_text_size(14.0)
+    .size(cosmic::iced::Size::new(1180.0, 820.0))
+    .size_limits(
+        cosmic::iced::Limits::NONE
+            .min_width(420.0)
+            .min_height(480.0),
+    )
+    .transparent(false);
     cosmic::app::run::<app::AppModel>(cosmic_settings, app::AppFlags { config, config_dir })?;
 
     Ok(())

@@ -11,6 +11,7 @@ members = [
     "lib-has",
 ]
 resolver = "3"
+exclude = ["vendor/cryoglyph", "vendor/xkbcommon"]
 
 [workspace.package]
 version = "2.13.0"
@@ -126,3 +127,10 @@ accesskit_winit = { git = "https://github.com/Oppzippy/accesskit.git", branch = 
 
 [patch.'https://github.com/pop-os/softbuffer']
 softbuffer = { git = "https://github.com/Oppzippy/softbuffer.git" }
+
+# Keep the locked renderer API while using the panic-safe LRU release.
+[patch.'https://github.com/iced-rs/cryoglyph.git']
+cryoglyph = { path = "vendor/cryoglyph" }
+
+[patch.crates-io]
+xkbcommon = { path = "vendor/xkbcommon" }

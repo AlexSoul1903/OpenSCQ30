@@ -1,0 +1,16 @@
+.git
+.vs
+.vscode
+.env
+.env.*
+**/.env
+**/.env.*
+.cargo/credentials
+.cargo/credentials.toml
+security-audit.json
+target
+**/target
+build-output
+release-files
+android/.gradle
+android/**/build

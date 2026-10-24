@@ -1,5 +1,8 @@
 ## About
 
+This fork includes the Audio Studio desktop theme and a Docker demo preview.
+See [UI design and Docker instructions](docs/audio-studio.md).
+
 OpenSCQ30 is free software for controlling settings for Soundcore headphones and earbuds. It was originally intended for the Soundcore Life Q30, after which the project was named, but a range of devices are now supported.
 
 ### Supported Platforms

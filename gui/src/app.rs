@@ -83,6 +83,7 @@ pub enum Message {
     None,
     SetPreferredLanguage(usize),
     SetTheme(usize),
+    SetReducedMotion(bool),
     KeyPressed {
         modifiers: keyboard::Modifiers,
         key: keyboard::Key,
@@ -177,6 +178,17 @@ impl Application for AppModel {
             ))
             .expect("database is required to run"),
         );
+        if std::env::var("OPENSCQ30_DEMO").as_deref() == Ok("1") {
+            // The container preview uses the existing simulated protocol backend.
+            let model = openscq30_lib::DeviceModel::SoundcoreA3028;
+            if let Err(err) = futures::executor::block_on(session.pair(PairedDevice {
+                mac_address: model.demo_mac_address(),
+                model,
+                is_demo: true,
+            })) {
+                tracing::warn!("could not register preview device: {err}");
+            }
+        }
         let (model, task) = DeviceSelectionModel::new(session.clone());
         let (available_languages, available_language_names) =
             iter::once((None, Cow::Owned(fl!("default"))))
@@ -236,6 +248,36 @@ impl Application for AppModel {
             Screen::DeviceSettings(model) => model.nav_model(),
             _ => None,
         }
+    }
+
+    fn nav_bar(&self) -> Option<cosmic::Element<'_, cosmic::Action<Message>>> {
+        if !self.core.nav_bar_active() {
+            return None;
+        }
+        let nav = widget::nav_bar(self.nav_model()?, |id| {
+            cosmic::Action::Cosmic(cosmic::app::Action::NavBar(id))
+        })
+        .on_context(|id| cosmic::Action::Cosmic(cosmic::app::Action::NavBarContext(id)));
+        let mut container = nav
+            .into_container()
+            .width(Length::Shrink)
+            .height(Length::Fill)
+            .class(cosmic::theme::Container::custom(|theme| {
+                if crate::theme::is_studio(theme) {
+                    widget::container::Style {
+                        background: Some(crate::theme::SHELL.into()),
+                        text_color: Some(crate::theme::TEXT),
+                        icon_color: Some(crate::theme::TEXT),
+                        ..Default::default()
+                    }
+                } else {
+                    widget::nav_bar::nav_bar_style(theme)
+                }
+            }));
+        if !self.core.is_condensed() {
+            container = container.max_width(260);
+        }
+        Some(container.into())
     }
 
     fn on_nav_select(&mut self, id: nav_bar::Id) -> cosmic::app::Task<Self::Message> {
@@ -368,6 +410,10 @@ impl Application for AppModel {
                                     Message::SetTheme,
                                 )
                             ),
+                            widget::settings::item::builder(fl!("reduced-motion")).control(
+                                widget::toggler(self.config.get().reduced_motion)
+                                    .on_toggle(Message::SetReducedMotion),
+                            ),
                         ],
                         Message::CloseContextDrawer,
                     )
@@ -388,6 +434,18 @@ impl Application for AppModel {
 
     fn update(&mut self, message: Self::Message) -> cosmic::app::Task<Self::Message> {
         match message {
+            Message::SetReducedMotion(reduced) => {
+                crate::theme::set_reduced_motion(reduced);
+                let saved = self.config.modify(|config| config.reduced_motion = reduced);
+                return Task::future(async move {
+                    match saved.await {
+                        Ok(Ok(())) => Message::None,
+                        Ok(Err(error)) => Message::Warning(error.to_string()),
+                        Err(error) => Message::Warning(error.to_string()),
+                    }
+                })
+                .map(Into::into);
+            }
             Message::None => (),
             Message::KeyPressed {
                 modifiers,
@@ -636,6 +694,7 @@ impl Application for AppModel {
 impl AppModel {
     fn apply_theme(&self) -> cosmic::app::Task<Message> {
         cosmic::command::set_theme(match self.config.get().theme {
+            AppTheme::Studio => crate::theme::studio(),
             AppTheme::System => self.core.system_theme().clone(),
             AppTheme::Light => cosmic::Theme::light(),
             AppTheme::Dark => cosmic::Theme::dark(),
@@ -655,7 +714,7 @@ impl AppModel {
         widget::column![
             widget::progress_bar::indeterminate_circular(),
             widget::text::title2(fl!("connecting-to", name = device_name)),
-            widget::button::destructive(fl!("cancel")).on_press(Message::CancelConnectToDevice),
+            widget::button::standard(fl!("cancel")).on_press(Message::CancelConnectToDevice),
         ]
         .spacing(10)
         .align_x(alignment::Horizontal::Center)

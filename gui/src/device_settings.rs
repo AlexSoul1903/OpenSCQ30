@@ -25,7 +25,7 @@ use tracing::{Instrument, debug};
 
 use crate::{
     app::DebugOpenSCQ30Device,
-    equalizer_line, fl, handle_soft_error,
+    fl, handle_soft_error,
     openscq30_v1_migration::{self, LegacyEqualizerProfile},
     throttle,
     utils::coalesce_result,
@@ -506,8 +506,7 @@ impl DeviceSettingsModel {
                                 .on_press(Message::ModifiableSelectAddDialogSubmit(None)),
                         )
                         .secondary_action(
-                            widget::button::destructive(fl!("cancel"))
-                                .on_press(Message::CancelDialog),
+                            widget::button::text(fl!("cancel")).on_press(Message::CancelDialog),
                         )
                         .into(),
                     Dialog::ModifiableSelectRemove(_setting_id, name) => widget::dialog()
@@ -569,7 +568,7 @@ impl DeviceSettingsModel {
     }
 
     fn view_settings<'a>(&'a self, category_id: &'a CategoryId) -> Element<'a, Message> {
-        let mut section = widget::settings::section().title(category_id.translate());
+        let mut section = widget::settings::section();
         for setting_id in &self.settings_order {
             let Some(setting_ui_state) = self.settings.get(setting_id) else {
                 tracing::error!("setting id {setting_id} is missing ui state");
@@ -591,7 +590,30 @@ impl DeviceSettingsModel {
             }
         }
 
-        widget::scrollable(section).into()
+        let guidance = match category_id {
+            CategoryId::Equalizer => fl!("studio-eq-help"),
+            CategoryId::SoundModes => fl!("studio-modes-help"),
+            _ => fl!("studio-device-help"),
+        };
+        widget::scrollable(
+            widget::container(
+                widget::column![
+                    widget::text::caption_heading(self.device.model().translate()),
+                    widget::text::title2(category_id.translate()),
+                    widget::text::body(guidance),
+                    widget::container(section)
+                        .padding(16)
+                        .width(Length::Fill)
+                        .class(cosmic::theme::Container::custom(crate::theme::panel)),
+                ]
+                .spacing(crate::theme::GAP),
+            )
+            .padding(crate::theme::PAGE_PADDING)
+            .max_width(1200),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
     }
 
     fn view_setting<'a>(&'a self, setting: &'a SettingUiState) -> SettingDisplayKind<'a, Message> {
@@ -680,22 +702,15 @@ impl DeviceSettingsModel {
                     })
                     .into()
                 } else {
-                    // TODO reuse EqualizerLine so that the canvas cache is in effect
-                    Element::from(
-                        widget::canvas(equalizer_line::EqualizerLine::new(
-                            setting.min,
-                            setting.max,
-                            value.to_vec(),
-                        ))
-                        .width(Length::Fill),
-                    )
-                    .into()
+                    controls::equalizer_preview(setting, value).into()
                 }
             }
             SettingVariantUiState::Information { translated_value } => controls::information(
                 translated_name,
                 Cow::Borrowed(translated_value),
                 Message::CopyToClipboard(translated_value.to_owned()),
+                battery_percent(setting_id, self.device.setting(&setting_id))
+                    .is_some_and(|percent| percent <= 20),
             )
             .into(),
             SettingVariantUiState::ImportString {
@@ -1103,6 +1118,27 @@ impl DeviceSettingsModel {
     }
 }
 
+fn battery_percent(setting_id: SettingId, setting: Option<Setting>) -> Option<u32> {
+    if !matches!(
+        setting_id,
+        SettingId::BatteryLevel
+            | SettingId::BatteryLevelLeft
+            | SettingId::BatteryLevelRight
+            | SettingId::CaseBatteryLevel
+    ) {
+        return None;
+    }
+    let Setting::Information { value, .. } = setting? else {
+        return None;
+    };
+    let (level, maximum) = value.split_once('/')?;
+    let (level, maximum) = (level.parse::<u32>().ok()?, maximum.parse::<u32>().ok()?);
+    if maximum == 0 || level > maximum {
+        return None;
+    }
+    Some(((u64::from(level) * 100) / u64::from(maximum)) as u32)
+}
+
 fn labeled_setting_row<'a, M>(
     label: impl Into<Cow<'a, str>> + 'a,
     element: impl Into<Element<'a, M>>,
@@ -1132,4 +1168,39 @@ fn key_binds() -> HashMap<KeyBind, KeyBindAction> {
     );
 
     key_binds
+}
+
+#[cfg(test)]
+mod studio_tests {
+    use super::*;
+
+    #[test]
+    fn battery_uses_protocol_ratio_not_translated_percentage() {
+        let battery = |value: &str| {
+            Some(Setting::Information {
+                value: value.into(),
+                translated_value: "localized text".into(),
+            })
+        };
+        assert_eq!(
+            battery_percent(SettingId::BatteryLevel, battery("1/5")),
+            Some(20)
+        );
+        assert_eq!(
+            battery_percent(SettingId::BatteryLevelLeft, battery("4/5")),
+            Some(80)
+        );
+        assert_eq!(
+            battery_percent(SettingId::BatteryLevel, battery("1/0")),
+            None
+        );
+        assert_eq!(
+            battery_percent(SettingId::BatteryLevel, battery("255/5")),
+            None
+        );
+        assert_eq!(
+            battery_percent(SettingId::SerialNumber, battery("1/5")),
+            None
+        );
+    }
 }
